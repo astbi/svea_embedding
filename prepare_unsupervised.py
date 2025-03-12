@@ -34,7 +34,6 @@ def prepare_htr_data(input_dir):
     return volumes
 
 # Reading txt files and gathering data
-# TODO Hur ta bort krokar?
 def read_data(input_dir, sequence_lengths, length_weigths):
     """ Read HTR-scanned json files in subdirectories and gather the data (strings)
      of varying length """
@@ -84,7 +83,6 @@ if __name__ == "__main__":
         "Here is an old text in Swedish: {text} Translate it into modern Swedish. Answer with the translation only.")
 
     print("Generating translations...")
-    #id = 0
     with open("unsupervised_data.jsonl", "w", encoding="utf-8") as outfile:        
         for text in text_data:
             prompt = prompt_template.invoke({"text": text})
@@ -92,7 +90,6 @@ if __name__ == "__main__":
             translation = llm.invoke(prompt).content
             # save the entry and write into outfile
             text_pair = {"query": translation, "pos": [text]}
-            #id += 1
             json_line = json.dumps(text_pair, ensure_ascii=False)
             outfile.write(json_line + "\n")
     print("Done!")

@@ -44,6 +44,3 @@ with open("supervised_pos.jsonl", "w", encoding="utf-8") as outfile:
         json_line = json.dumps(text_pair, ensure_ascii=False)
         outfile.write(json_line + "\n")
 print("Done!")
-# TODO
-# TQDM
-# sätt upp träning

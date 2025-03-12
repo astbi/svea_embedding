@@ -10,9 +10,6 @@ python split_unsupervised.py unsupervised_data.jsonl
 
 python prepare_supervised.py small_data
 
-git clone https://github.com/FlagOpen/FlagEmbedding
-cd FlagEmbedding/scripts
-
 echo "Mining negatives..."
 python hn_mine.py \
 --input_file c:/Users/Admin/Thesis/supervised_pos.jsonl \
