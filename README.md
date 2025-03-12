@@ -4,13 +4,13 @@ För masterarbete med Riksarkivet.
 small_data är några exempel från en HTR-scannad volym. 
 
 ## Preprocessing
-# Unsupervised data
+### Unsupervised data
 python prepare_unsupervised.py small_data
 
 Dela upp efter längd:
 python split_unsupervised.py unsupervised_data.jsonl
 
-# Supervised data
+### Supervised data
 python prepare_supervised.py small_data
 
 Hard negatives:
