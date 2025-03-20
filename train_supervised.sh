@@ -48,5 +48,5 @@ torchrun --nproc_per_node 1 \
     --use_self_distill True \
     --fix_encoder False \
     --self_distill_start_step 0 \
-    --torch_empty_cache_steps 1 \
-    --split_batches True
+    --shuffle_ratio 1 \
+    --auto_find_batch_size True
