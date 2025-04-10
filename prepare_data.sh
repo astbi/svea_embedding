@@ -10,15 +10,20 @@ python hn_mine.py \
 --output_file supervised_posneg.jsonl \
 --range_for_sampling 2-200 \
 --negative_number 7 \
---embedder_name_or_path BAAI/bge-m3
+--embedder_name_or_path BAAI/bge-m3 \
+--use_gpu_for_searching True \
+--search_batch_size 8 \
+--batch_size 8 \
+--embedder_passage_max_length 8192
 
 echo "Adding teacher scores..."
 python add_reranker_score.py \
 --input_file supervised_posneg.jsonl \
 --output_file supervised_data.jsonl \
 --reranker_name_or_path BAAI/bge-reranker-v2-m3 \
---reranker_query_max_length 512 \
---reranker_max_length 8192
+--reranker_query_max_length 256 \
+--reranker_max_length 8192 \
+--reranker_batch_size 1
 
 echo "Splitting supervised data by length..."
 python split_data_by_length.py \

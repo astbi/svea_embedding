@@ -22,7 +22,7 @@ class ModelArgs:
         default=True, metadata={"help": "whether to use fp16 for inference"}
     )
     devices: Optional[str] = field(
-        default=None, metadata={"help": "Devices to use for inference.", "nargs": "+"}
+        default_factory=lambda: ["cuda:0"], metadata={"help": "Devices to use for inference.", "nargs": "+"}
     )
     trust_remote_code: bool = field(
         default=False, metadata={"help": "Trust remote code"}
