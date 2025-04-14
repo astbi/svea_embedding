@@ -107,7 +107,7 @@ def main(score_args: ScoreArgs, model_args: ModelArgs):
 
     pairs = []
     data = []
-    with open(score_args.input_file) as f:
+    with open(score_args.input_file, encoding="utf-8") as f:
         for line in f:
             data.append(json.loads(line))
             for p in data[-1]['pos']:
@@ -128,7 +128,7 @@ def main(score_args: ScoreArgs, model_args: ModelArgs):
             data[i]['neg_scores'].append(float(scores[score_idx]))
             score_idx += 1
 
-    with open(score_args.output_file, 'w') as f:
+    with open(score_args.output_file, 'w', encoding="utf-8") as f:
         for d in data:
             f.write(json.dumps(d, ensure_ascii=False) + '\n')
 
