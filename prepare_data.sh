@@ -12,9 +12,10 @@ python hn_mine.py \
 --negative_number 7 \
 --embedder_name_or_path BAAI/bge-m3 \
 --use_gpu_for_searching True \
---search_batch_size 8 \
---batch_size 8 \
---embedder_passage_max_length 8192
+--search_batch_size 1 \
+--batch_size 1 \
+--embedder_passage_max_length 8192 \
+--embedder_query_max_length 256
 
 echo "Adding teacher scores..."
 python add_reranker_score.py \
@@ -35,4 +36,4 @@ python split_data_by_length.py \
 --model_name_or_path BAAI/bge-m3 \
 --num_proc 16 \
 
-echo "Done!!!"
+echo "Done!"

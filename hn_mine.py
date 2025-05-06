@@ -140,7 +140,7 @@ def find_knn_neg(
     corpus = []
     queries = []
     train_data = []
-    for line in open(input_file):
+    for line in open(input_file, encoding="utf-8"):
         line = json.loads(line.strip())
         train_data.append(line)
         corpus.extend(line['pos'])
@@ -184,7 +184,7 @@ def find_knn_neg(
             filtered_inx = random.sample(filtered_inx, negative_number)
         data['neg'] = [corpus[inx] for inx in filtered_inx]
 
-    with open(output_file, 'w') as f:
+    with open(output_file, 'w', encoding="utf-8") as f:
         for data in train_data:
             if len(data['neg']) < negative_number:
                 samples = random.sample(corpus, negative_number - len(data['neg']) + len(data['pos']))
