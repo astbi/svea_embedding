@@ -2,12 +2,12 @@
 eval "$(/c/Users/Admin/miniconda3/Scripts/conda.exe shell.bash hook)"
 conda activate thesis_prepro
 
-python prepare_supervised.py small_data
+python generate_queries.py small_data example_pos.jsonl
 
 echo "Mining negatives..."
 python hn_mine.py \
---input_file supervised_pos.jsonl \
---output_file supervised_posneg.jsonl \
+--input_file example_pos.jsonl \
+--output_file example_posneg.jsonl \
 --range_for_sampling 2-200 \
 --negative_number 7 \
 --embedder_name_or_path BAAI/bge-m3 \
@@ -19,8 +19,8 @@ python hn_mine.py \
 
 echo "Adding teacher scores..."
 python add_reranker_score.py \
---input_file supervised_posneg.jsonl \
---output_file supervised_data.jsonl \
+--input_file example_posneg.jsonl \
+--output_file example_train.jsonl \
 --reranker_name_or_path BAAI/bge-reranker-v2-m3 \
 --reranker_query_max_length 256 \
 --reranker_max_length 8192 \
@@ -28,8 +28,8 @@ python add_reranker_score.py \
 
 echo "Splitting supervised data by length..."
 python split_data_by_length.py \
---input_path supervised_data.jsonl \
---output_dir example_supervised_data_split \
+--input_path example_train.jsonl \
+--output_dir example_train_split \
 --cache_dir .cache \
 --log_name .split_log \
 --length_list 0 500 1000 2000 3000 4000 5000 6000 7000 \
