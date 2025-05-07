@@ -177,7 +177,8 @@ if __name__ == "__main__":
     parser.add_argument("--goldfile", type=str, required=True)
     parser.add_argument("--outfile", type=str, default="scores.txt")
     parser.add_argument("--k_documents", type=int, default=100, help="Number of documents to retrieve for each query.")
-    parser.add_argument("--include_map", type=bool, default=True)
+    parser.add_argument("--include_map", action="store_true", default=True)
+    parser.add_argument("--include_bm25", action="store_true", default=True)
     parser.add_argument("--hf_models", nargs="+", default=["BAAI/bge-m3", 
                                                            "KBLab/sentence-bert-swedish-cased", 
                                                            "castorini/mdpr-tied-pft-msmarco", 
@@ -199,12 +200,13 @@ if __name__ == "__main__":
                             include_map = args.include_map)
     
     with open(args.outfile, "w", encoding="utf-8") as outfile:
-        bm25_results, bm25_map = evaluation.retrieve_bm25()
-        outfile.write(f"BM25\n")
-        if args.include_map:
-            outfile.write(f"MAP: {bm25_map*100}\n")
-        for s in (score_and_print(evaluation, bm25_results)):
-            outfile.write(s)
+        if args.include_bm25:
+            bm25_results, bm25_map = evaluation.retrieve_bm25()
+            outfile.write(f"BM25\n")
+            if args.include_map:
+                outfile.write(f"MAP: {bm25_map*100}\n")
+            for s in (score_and_print(evaluation, bm25_results)):
+                outfile.write(s)
         
         for model in args.hf_models:
             outfile.write(f"{model}\n")
