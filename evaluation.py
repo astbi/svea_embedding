@@ -9,6 +9,7 @@ from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer
 from rank_bm25 import BM25Okapi
 from sklearn.metrics import ndcg_score
+from FlagEmbedding import BGEM3FlagModel
 
 class Evaluation():
     def __init__(self, datafile, goldfile, k, include_map):
@@ -16,7 +17,7 @@ class Evaluation():
         self.k = k # number of documents to retrieve for each query
         self.include_map = include_map
         self.gold_standard = self._get_gold_standard(goldfile)
-        self.n_relevant = len(list(self.gold_standard.values())[0]) # number of relevant documents for each query
+        #self.n_relevant = len(list(self.gold_standard.values())[0]) # number of relevant documents for each query
     
     def _gather_data(self, path):
         """Gathers all queries and documents in the test data"""
@@ -25,9 +26,10 @@ class Evaluation():
         with open(path, "r", encoding="utf-8") as file:
             for line in file:
                 data = json.loads(line)
-                queries.append(data["query"])
                 for doc in data["pos"]:
                     documents.append(doc)
+                if len(data["pos"]) > 0:
+                    queries.append(data["query"])
         return queries, documents
     
     def _get_gold_standard(self, path):
@@ -40,11 +42,12 @@ class Evaluation():
         with open(path, "r", encoding="utf-8") as file:
             for line in file:
                 data = json.loads(line)
-                query = data["query"]
                 relevant_documents = data["documents"]
                 n = len(relevant_documents)
-                res = [(relevant_documents[i], n-i) for i in range(n)]
-                results[query] = res
+                if n > 0: # to ensure that queries without gold standard relevant documents are not tested
+                    query = data["query"]
+                    res = [(relevant_documents[i], n-i) for i in range(n)]
+                    results[query] = res
         return results
     
     def _get_mean(self, L):
@@ -53,13 +56,13 @@ class Evaluation():
         return sum(L)/len(L)
     
     def retrieve_hf_model(self, model_path):
-        """ Retrieving with a model from huggingface. Returns result dict
+        """ Retrieval with a model from huggingface. Returns result dict
         {query: [(doc1, score1), doc2,score2]...} and MAP"""
         print(f"Retrieval with {model_path}...")
         torch.cuda.empty_cache()
-        model = SentenceTransformer(model_path) # load model
+        model = SentenceTransformer(model_path, device="cuda") # load model
         print("Embedding documents...")
-        document_embeddings = model.encode(self.documents, convert_to_numpy=True) # encode corpus
+        document_embeddings = model.encode(self.documents, convert_to_numpy=True, batch_size=2, show_progress_bar=True) # encode corpus
         dimension = document_embeddings.shape[1]
         index = faiss.IndexFlatIP(dimension) # create faiss index
         index.add(document_embeddings)
@@ -83,11 +86,46 @@ class Evaluation():
             map=None
         return results, map
 
+    def retrieve_local(self, model_path):
+        """ Retrieval with a local fine-tuned BGE M3-Embedding moodel. 
+        Returns result dict {query: [(doc1, score1), doc2,score2]...} and MAP"""
+        print(f"Retrieval with {model_path}...")
+        torch.cuda.empty_cache()
+        model = BGEM3FlagModel(model_path, use_fp16=True, device="cuda") # load BGE-M3 model
+        print("Embedding documents...")
+        document_embeddings = [model.encode(
+            doc, return_dense=True, return_sparse=True, return_colbert_vecs=True) for doc in tqdm(self.documents)] # List of document embeddings
+        print("Retrieving documents for each query...")
+        results = dict()
+        if self.include_map:
+            average_precisions = []
+        for query in tqdm(self.queries):
+            docindices_scores = dict() # for storing the score of each document
+            query_embedding = model.encode(
+                query,max_length=256,return_dense=True,return_sparse=True,return_colbert_vecs=True) # encode query
+            for i, doc_embedding in enumerate(document_embeddings): # go through each document embedding
+                s_dense = (query_embedding["dense_vecs"] @ doc_embedding["dense_vecs"].T) # dense score
+                s_sparse = model.compute_lexical_matching_score(query_embedding["lexical_weights"], doc_embedding["lexical_weights"]) # sparse score
+                s_colbert = model.colbert_score(query_embedding["colbert_vecs"], doc_embedding["colbert_vecs"]) # multi-vector score
+                final_score = (1 / 3 * s_dense + 1 / 3 * s_sparse + 1 / 3 * s_colbert) # combined relevance score
+                docindices_scores[i] = float(final_score)
+            sorted_indices = sorted(docindices_scores, key=docindices_scores.get, reverse=True) # document indices sorted by score
+            top_k_results = [(self.documents[i], float(docindices_scores[i])) for i in sorted_indices[: self.k]]
+            results[query] = top_k_results # save the top k documents and scores
+            if self.include_map:
+                sorted_docs = [self.documents[i] for i in sorted_indices]
+                average_precisions.append(self._average_precision(sorted_docs, query))
+        if self.include_map:
+            map = self._get_mean(average_precisions)
+        else:
+            map = None
+        return results, map
+
     def _average_precision(self, sorted_results, query):
         """Calculate average precision for one information need (query).
         sorted_results = a list of documents in order of relevance 
         judged by a model or BM25."""
-        gold_docs = [res[0] for res in self.gold_standard[query]] # list of relevant documents
+        gold_docs = [res[0] for res in self.gold_standard[query]] # list of true relevant documents from gold standard
         precisions = []
         for i in range(len(sorted_results)): # loop over all retrieved docs in order
             n_relevant_retrieved = 0
@@ -130,16 +168,17 @@ class Evaluation():
         return results, map
 
     def precision_recall(self, results):
-        """ Calculate precision and recall  @ k from results dict"""
+        """ Calculate precision@k and recall@k from results dict"""
         recalls = []
         precisions = []
         for query in self.queries:
             n_relevant_retrieved = 0
-            gold_docs = [res[0] for res in self.gold_standard[query]] # true documents
+            gold_docs = [res[0] for res in self.gold_standard[query]] # true relevant documents
+            n_relevant = len(gold_docs)
             for res in results[query]:
                 if res[0] in gold_docs:
                     n_relevant_retrieved += 1
-            recalls.append(n_relevant_retrieved/self.n_relevant)
+            recalls.append(n_relevant_retrieved/n_relevant)
             precisions.append(n_relevant_retrieved/self.k)
         return self._get_mean(precisions), self._get_mean(recalls)
 
@@ -156,34 +195,37 @@ class Evaluation():
         ndcgs = []
         for query in self.queries:
             # Create {doc:score} dictionaries: true relevance and judged relevance scores
-            doc_truerelevance = self._doc_relevance_dict(self.gold_standard[query])
-            doc_relevancescore = self._doc_relevance_dict(results[query])
+            doc_truerelevance = self._doc_relevance_dict(self.gold_standard[query]) # true relevance
+            doc_relevancescore = self._doc_relevance_dict(results[query]) # as judged by model/bm25
             n_documents = len(self.documents)
-            # Create numpy arrays to be compared
+            # Create zeros numpy arrays to be compared later
             true_relevance = np.zeros((1, n_documents))
             relevance_scores = np.zeros((1, n_documents))
-            # Add relevance scores from dictionaries to arrays
+            # Add relevance scores from dictionaries to the arrays
             for i in range(n_documents):
                 document = self.documents[i]
                 true_relevance[0][i] = doc_truerelevance[document]
                 relevance_scores[0][i] = doc_relevancescore[document]
-            # Compare
+            # Compare score arrays
             ndcgs.append(ndcg_score(true_relevance, relevance_scores))
         return self._get_mean(ndcgs)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--test_data_file", type=str, required=True)
-    parser.add_argument("--goldfile", type=str, required=True)
+    parser.add_argument("--test_data_file", type=str, required=True, help="Path to testdata file {query: query, pos: [document]}")
+    parser.add_argument("--goldfile", type=str, required=True, help="Path to goldfile {query: query, documents: [ranked documents]}")
     parser.add_argument("--outfile", type=str, default="scores.txt")
     parser.add_argument("--k_documents", type=int, default=100, help="Number of documents to retrieve for each query.")
     parser.add_argument("--include_map", action="store_true", default=True)
-    parser.add_argument("--include_bm25", action="store_true", default=True)
-    parser.add_argument("--hf_models", nargs="+", default=["BAAI/bge-m3", 
+    parser.add_argument("--methods", nargs="+", default=["bm25",
+                                                          "BAAI/bge-m3", 
                                                            "KBLab/sentence-bert-swedish-cased", 
                                                            "castorini/mdpr-tied-pft-msmarco", 
                                                            "gemasphi/mcontriever", 
-                                                           "intfloat/multilingual-e5-small"])
+                                                           "intfloat/multilingual-e5-small"],
+                                                           help="Retrieval methods that we want to evaluate: bm25 or the path to a huggingface model"
+                                                           )
+    parser.add_argument("--local_m3_model", type=str, required=False, help="Path to a local fine-tuned BGE M3-Embedding model")
     args = parser.parse_args()
 
     def score_and_print(evaluation, results):
@@ -193,28 +235,34 @@ if __name__ == "__main__":
                 f"Precision@{evaluation.k}: {prec*100}%\n",
                 f"nDCG@{evaluation.k}: {ndcg*100}%\n\n",
         ]
+    
+    include_map = True # TODO lista ut hur man använder bool-argument med argparse
 
     evaluation = Evaluation(datafile=args.test_data_file, 
                             goldfile=args.goldfile, 
                             k=args.k_documents,
-                            include_map = args.include_map)
+                            include_map = include_map)
     
     with open(args.outfile, "w", encoding="utf-8") as outfile:
-        if args.include_bm25:
-            bm25_results, bm25_map = evaluation.retrieve_bm25()
-            outfile.write(f"BM25\n")
-            if args.include_map:
-                outfile.write(f"MAP: {bm25_map*100}\n")
-            for s in (score_and_print(evaluation, bm25_results)):
-                outfile.write(s)
-        
-        for model in args.hf_models:
-            outfile.write(f"{model}\n")
-            try:
-                model_results, model_map = evaluation.retrieve_hf_model(model)
+        for method in args.methods:
+            outfile.write(f"{method}\n")
+            try:    
+                if method.lower() == "bm25":
+                    results, map = evaluation.retrieve_bm25()
+                else:
+                    results, map = evaluation.retrieve_hf_model(method)
                 if args.include_map:
-                    outfile.write(f"MAP: {model_map*100}%\n")
-                for s in score_and_print(evaluation, model_results):
+                    outfile.write(f"MAP: {map*100}%\n")
+                for s in score_and_print(evaluation, results):
                     outfile.write(s)
-            except torch.cuda.OutOfMemoryError:
+            except torch.cuda.OutOfMemoryError as e:
                 outfile.write("Not enough memory.\n\n")
+                print(e)
+        
+        if args.local_m3_model:
+            outfile.write("Local model\n")
+            local_results, local_map = evaluation.retrieve_local(args.local_m3_model)
+            if include_map:
+                outfile.write(f"MAP: {local_map * 100}%\n")
+            for s in score_and_print(evaluation, local_results):
+                outfile.write(s)
