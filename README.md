@@ -16,7 +16,8 @@ The query generation is a time consuming process. If it for some reason stops be
 
 **Mine hard negtives:**
 Next, we mine hard negatives for the training data with `hn_mine.py`:
-```python hn_mine.py \
+```
+python hn_mine.py \
 --input_file example_pos.jsonl \
 --output_file example_posneg.jsonl \
 --range_for_sampling 2-200 \
@@ -31,7 +32,8 @@ Next, we mine hard negatives for the training data with `hn_mine.py`:
 
 **Add re-ranker scores:**
 After mining hard negatives, we add re-ranker scores with `add_reranker_score.py`:
-```python add_reranker_score.py \
+```
+python add_reranker_score.py \
 --input_file example_posneg.jsonl \
 --output_file example_train.jsonl \
 --reranker_name_or_path BAAI/bge-reranker-v2-m3 \
@@ -42,7 +44,8 @@ After mining hard negatives, we add re-ranker scores with `add_reranker_score.py
 
 **Split data by length:**
 Finally, the training data is split by length:
-```python split_data_by_length.py \
+```
+python split_data_by_length.py \
 --input_path example_train.jsonl \
 --output_dir example_train_split \
 --cache_dir .cache \
@@ -56,7 +59,8 @@ Finally, the training data is split by length:
 We follow the fine-tuning instructions of BGE M3-Embedding availibe on the FlagEmbedding GitHub page: https://github.com/FlagOpen/FlagEmbedding.
 
 To fine-tune the model, we run the following command, but with the corret path to our training data.
-```torchrun --nproc_per_node 2 \
+```
+torchrun --nproc_per_node 2 \
 	-m FlagEmbedding.finetune.embedder.encoder_only.m3 \
 	--model_name_or_path BAAI/bge-m3 \
     --cache_dir ./cache/model \
@@ -99,7 +103,8 @@ Once we have queries and documents for evaluation, we can prepare the gold stand
 
 ## Evaluation
 The following command measures retrieval performance according to our experiments and writes the resulting scores in a file called `scores.txt`.
-```python evaluation.py \
+```
+python evaluation.py \
     --test_data_file example_pos.jsonl \
     --goldfile example_gold_standard.jsonl \
     --local_m3_model svea_embedding/...
