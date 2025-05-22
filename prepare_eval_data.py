@@ -7,7 +7,8 @@ from langchain_core.vectorstores import InMemoryVectorStore
 from tqdm import tqdm
 from langchain_openai import OpenAIEmbeddings
 
-testdata_pos_path = sys.arv[1]
+testdata_pos_path = sys.argv[1]
+output_path = sys.argv[2]
 
 if not os.getenv("OPENAI_API_KEY"):
     os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter your OpenAI API key: ")
@@ -30,7 +31,7 @@ with open(testdata_pos_path,"r",encoding="utf-8") as infile:
 ratio = 0.005 # 0.5% of results will be saved for manual evaluation
 random_i = 1
 
-with open("gold_testdata.jsonl","w",encoding="utf-8") as outfile:
+with open(output_path,"w",encoding="utf-8") as outfile:
     print("Searching for each query...")
     for query in tqdm(queries):
         results = vector_store.similarity_search(query, k=10) # perform search for 10 best documents
