@@ -1,14 +1,22 @@
-# ra_m3_masterthesis
-This repository contains scripts and example data for my masterthesis.
+# Svea Embedding
+This repository contains scripts and example data for my master thesis in language technology.
 
-## Pre-processing of Training Data
+To follow the methodology steps, one first needs to install the FlagEmbedding package:
+`pip install -U FlagEmbedding[finetine]`
+
+## Curation of Training Data
 I have includes some example data in the directory "small_data". The final training data has the form of the data in the directory "example_train_split".
 
-Generate queries:
-python generate_queries.py small_data example_pos.jsonl
+**Generating queries:**
+The first step for preparing training and evaluation data is to read the HTR-scanned archival text, split is into documents and generate queries: 
+`python generate_queries.py small_data example_pos.jsonl`
 
-Mine hard negtives:
-python hn_mine.py \
+The query generation is a time consuming process. If it for some reason stops before being done, one can see where by running this command and putting in the path to the HTR volumes along with the last processed achival text.
+`python where_query_generation_stopped example_volumes "text last processed"`
+
+**Mine hard negtives:**
+Next, we mine hard negatives for the training data with `hn_mine.py`:
+```python hn_mine.py \
 --input_file example_pos.jsonl \
 --output_file example_posneg.jsonl \
 --range_for_sampling 2-200 \
@@ -19,18 +27,22 @@ python hn_mine.py \
 --batch_size 1 \
 --embedder_passage_max_length 8192 \
 --embedder_query_max_length 256
+```
 
-Add teacher scores:
-python add_reranker_score.py \
+**Add re-ranker scores:**
+After mining hard negatives, we add re-ranker scores with `add_reranker_score.py`:
+```python add_reranker_score.py \
 --input_file example_posneg.jsonl \
 --output_file example_train.jsonl \
 --reranker_name_or_path BAAI/bge-reranker-v2-m3 \
 --reranker_query_max_length 256 \
 --reranker_max_length 8192 \
 --reranker_batch_size 1
+```
 
-Split data by length:
-python split_data_by_length.py \
+**Split data by length:**
+Finally, the training data is split by length:
+```python split_data_by_length.py \
 --input_path example_train.jsonl \
 --output_dir example_train_split \
 --cache_dir .cache \
@@ -38,9 +50,13 @@ python split_data_by_length.py \
 --length_list 0 500 1000 2000 3000 4000 5000 6000 7000 \
 --model_name_or_path BAAI/bge-m3 \
 --num_proc 16 \
+```
 
 ## Fine-tuning of BGE M3-Embedding
-torchrun --nproc_per_node 2 \
+We follow the fine-tuning instructions of BGE M3-Embedding availibe on the FlagEmbedding GitHub page: https://github.com/FlagOpen/FlagEmbedding.
+
+To fine-tune the model, we run the following command, but with the corret path to our training data.
+```torchrun --nproc_per_node 2 \
 	-m FlagEmbedding.finetune.embedder.encoder_only.m3 \
 	--model_name_or_path BAAI/bge-m3 \
     --cache_dir ./cache/model \
@@ -54,7 +70,7 @@ torchrun --nproc_per_node 2 \
     --same_dataset_within_batch True \
     --small_threshold 0 \
     --drop_threshold 0 \
-    --output_dir ./bge_m3_finetuned \
+    --output_dir ./svea_embedding \
     --overwrite_output_dir \
     --learning_rate 1e-5 \
     --fp16 \
@@ -75,5 +91,20 @@ torchrun --nproc_per_node 2 \
     --use_self_distill True \
     --fix_encoder False \
     --self_distill_start_step 0 
+```
+
+## Gold Standard
+Once we have queries and documents for evaluation, we can prepare the gold standard ranking. The input examples need to have the same for as in the file `example_pos.jsonl`: queries paired with one positive document.
+`python prepare_eval_data.py example_pos.jsonl example_gold_standard.jsonl`
 
 ## Evaluation
+The following command measures retrieval performance according to our experiments and writes the resulting scores in a file called `scores.txt`.
+```python evaluation.py \
+    --test_data_file example_pos.jsonl \
+    --goldfile example_gold_standard.jsonl \
+    --local_m3_model svea_embedding/...
+```
+`--local_m3_model`is an optional argument and should contain the path to the checkpoint of a local fine-tuned M3-Embedding model.
+
+For the experiments with different document lengths, we filter the testdata file and goldfile to include only short or long documents.
+`python split_testdata.py example_pos.jsonl example_gold_standard.jsonl`
