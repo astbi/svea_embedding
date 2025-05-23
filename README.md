@@ -111,10 +111,18 @@ Once we have queries and documents for evaluation, we can prepare the gold stand
 The following command measures retrieval performance according to our experiments and writes the resulting scores in a file called `scores.txt`.
 ```
 python evaluation.py \
-    --test_data_file example_pos.jsonl \
-    --goldfile example_gold_standard.jsonl \
-    --local_m3_model svea_embedding/...
+--test_data_file example_pos.jsonl \
+--goldfile example_gold_standard.jsonl \
+--k_documents 100 \
+--methods bm25 \
+	BAAI/bge-m3 \
+	KBLab/sentence-bert-swedish-cased \
+	castorini/mdpr-tied-pft-msmarco \
+	gemasphi/mcontriever \
+	intfloat/multilingual-e5-small
+--local_m3_model svea_embedding/...
 ```
+`--methods` is a list of the retrieval methods that get evaluated, either `bm25` or the path to a HuggingFace model.
 `--local_m3_model` is an optional argument and should contain the path to the checkpoint of a local fine-tuned M3-Embedding model.
 
 For the experiments with different document lengths, we filter the testdata file and goldfile to include only short or long documents.
