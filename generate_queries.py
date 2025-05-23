@@ -3,6 +3,7 @@ import os
 import json
 import getpass
 import random
+from tqdm import tqdm
 from langchain_core.prompts import PromptTemplate
 from langchain.chat_models import init_chat_model
 
@@ -15,7 +16,7 @@ def get_sequence_length(sequence_lengths, length_weigths):
 def prepare_htr_data(input_dir):
     """ Read HTR files in subdirs and gather the text of all pages"""
     volumes = []
-    for subdir in os.listdir(input_dir):
+    for subdir in tqdm(os.listdir(input_dir)):
         subdir_path = os.path.join(input_dir, subdir)
         volume_text = ""
         for filename in os.listdir(subdir_path):
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     # Generate a query for each text
     print("Generating queries...")
     with open(outpath, "w", encoding="utf-8") as outfile:
-        for text in pos_data_lst:
+        for text in tqdm(pos_data_lst):
             prompt = prompt_template.invoke({"text": text})
             # This next step costs money per tokens !!!
             query = llm.invoke(prompt).content
