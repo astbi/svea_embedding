@@ -12,12 +12,10 @@ from sklearn.metrics import ndcg_score
 from FlagEmbedding import BGEM3FlagModel
 
 class Evaluation():
-    def __init__(self, datafile, goldfile, k, include_map):
+    def __init__(self, datafile, goldfile, k):
         self.queries, self.documents = self._gather_data(datafile)
         self.k = k # number of documents to retrieve for each query
-        self.include_map = include_map
         self.gold_standard = self._get_gold_standard(goldfile)
-        #self.n_relevant = len(list(self.gold_standard.values())[0]) # number of relevant documents for each query
     
     def _gather_data(self, path):
         """Gathers all queries and documents in the test data"""
@@ -67,8 +65,7 @@ class Evaluation():
         index = faiss.IndexFlatIP(dimension) # create faiss index
         index.add(document_embeddings)
         results = dict()
-        if self.include_map:
-            average_precisions = []
+        average_precisions = []
         print("Retrieving documents for each query...")
         for query in tqdm(self.queries): # get relevant documents and scores for each query
             query_embedding = model.encode([query], convert_to_numpy=True) # embed query
@@ -77,13 +74,9 @@ class Evaluation():
             top_k_results = [(self.documents[indices[0][i]], float(distances[0][i])) for i in range(self.k)]
             results[query] = top_k_results # save top k
             # Calculate average precision with sorted document list
-            if self.include_map:
-                sorted_docs = [self.documents[indices[0][i]] for i in range(len(self.documents))]
-                average_precisions.append(self._average_precision(sorted_docs, query))
-        if self.include_map:
-            map = self._get_mean(average_precisions)
-        else:
-            map=None
+            sorted_docs = [self.documents[indices[0][i]] for i in range(len(self.documents))]
+            average_precisions.append(self._average_precision(sorted_docs, query))
+        map = self._get_mean(average_precisions)
         return results, map
 
     def retrieve_local(self, model_path):
@@ -97,8 +90,7 @@ class Evaluation():
             doc, return_dense=True, return_sparse=True, return_colbert_vecs=True) for doc in tqdm(self.documents)] # List of document embeddings
         print("Retrieving documents for each query...")
         results = dict()
-        if self.include_map:
-            average_precisions = []
+        average_precisions = []
         for query in tqdm(self.queries):
             docindices_scores = dict() # for storing the score of each document
             query_embedding = model.encode(
@@ -112,13 +104,10 @@ class Evaluation():
             sorted_indices = sorted(docindices_scores, key=docindices_scores.get, reverse=True) # document indices sorted by score
             top_k_results = [(self.documents[i], float(docindices_scores[i])) for i in sorted_indices[: self.k]]
             results[query] = top_k_results # save the top k documents and scores
-            if self.include_map:
-                sorted_docs = [self.documents[i] for i in sorted_indices]
-                average_precisions.append(self._average_precision(sorted_docs, query))
-        if self.include_map:
-            map = self._get_mean(average_precisions)
-        else:
-            map = None
+            # Calculate average precision with sorted document list
+            sorted_docs = [self.documents[i] for i in sorted_indices]
+            average_precisions.append(self._average_precision(sorted_docs, query))
+        map = self._get_mean(average_precisions)
         return results, map
 
     def _average_precision(self, sorted_results, query):
@@ -146,8 +135,7 @@ class Evaluation():
         tokenized_corpus = [tokenizer.tokenize(doc) for doc in self.documents] # tokenize corpus
         bm25 = BM25Okapi(tokenized_corpus) # embed corpus
         results = dict()
-        if self.include_map:
-            average_precisions = []
+        average_precisions = []
         print("Retrieving documents for each query...")
         for query in tqdm(self.queries):
             tokenized_query = tokenizer.tokenize(query) # tokenize query
@@ -157,14 +145,10 @@ class Evaluation():
             # Top k documents and scores
             top_k_results = [(self.documents[i], float(scores[i])) for i in sorted_indices[:self.k]]
             results[query] = top_k_results
-            # sorted document list for calculating average precision
-            if self.include_map:
-                sorted_docs = [self.documents[i] for i in sorted_indices]
-                average_precisions.append(self._average_precision(sorted_docs, query))      
-        if self.include_map:
-            map = self._get_mean(average_precisions)
-        else:
-            map=None
+            # Calculate average precision with sorted document list
+            sorted_docs = [self.documents[i] for i in sorted_indices]
+            average_precisions.append(self._average_precision(sorted_docs, query)) 
+        map = self._get_mean(average_precisions)
         return results, map
 
     def precision_recall(self, results):
@@ -216,7 +200,6 @@ if __name__ == "__main__":
     parser.add_argument("--goldfile", type=str, required=True, help="Path to goldfile {query: query, documents: [ranked documents]}")
     parser.add_argument("--outfile", type=str, default="scores.txt")
     parser.add_argument("--k_documents", type=int, default=100, help="Number of documents to retrieve for each query.")
-    parser.add_argument("--include_map", action="store_true", default=True)
     parser.add_argument("--methods", nargs="+", default=["bm25",
                                                           "BAAI/bge-m3", 
                                                            "KBLab/sentence-bert-swedish-cased", 
@@ -236,12 +219,9 @@ if __name__ == "__main__":
                 f"nDCG@{evaluation.k}: {ndcg*100}%\n\n",
         ]
     
-    include_map = True # TODO lista ut hur man använder bool-argument med argparse
-
     evaluation = Evaluation(datafile=args.test_data_file, 
                             goldfile=args.goldfile, 
-                            k=args.k_documents,
-                            include_map = include_map)
+                            k=args.k_documents)
     
     with open(args.outfile, "w", encoding="utf-8") as outfile:
         for method in args.methods:
@@ -251,8 +231,7 @@ if __name__ == "__main__":
                     results, map = evaluation.retrieve_bm25()
                 else:
                     results, map = evaluation.retrieve_hf_model(method)
-                if args.include_map:
-                    outfile.write(f"MAP: {map*100}%\n")
+                outfile.write(f"MAP: {map*100}%\n")
                 for s in score_and_print(evaluation, results):
                     outfile.write(s)
             except torch.cuda.OutOfMemoryError as e:
@@ -262,7 +241,6 @@ if __name__ == "__main__":
         if args.local_m3_model:
             outfile.write("Local model\n")
             local_results, local_map = evaluation.retrieve_local(args.local_m3_model)
-            if include_map:
-                outfile.write(f"MAP: {local_map * 100}%\n")
+            outfile.write(f"MAP: {local_map * 100}%\n")
             for s in score_and_print(evaluation, local_results):
                 outfile.write(s)
