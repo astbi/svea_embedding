@@ -29,7 +29,7 @@ def prepare_htr_data(input_dir):
                             volume_text += " ".join(text["text_result"]["texts"])+" "
                 except KeyError: # not a normal file
                     pass
-        volume_text = volume_text.replace("¬ ", "") # ta bort radbrytningstecken
+        volume_text = volume_text.replace("¬ ", "") # remove line break sign
         volumes.append(volume_text)
     return volumes
 
@@ -67,12 +67,13 @@ if __name__ == "__main__":
     # Read txt files and gather positive text data
     input_dir = sys.argv[1]
     outpath = sys.argv[2]
+    # The length weigths are replicated from the original fine-tuning data of BGE M3 Embedding https:
+    # //huggingface.co/datasets/Shitao/bge-m3-data 
     pos_data_lst = read_data(input_dir,
                             sequence_lengths=[(10,499), (500, 999),(1000,1999),(2000,2999),(3000,3999),(4000,4999), (5000,5999), (6000,6999), (7000,8192)],
                             length_weigths=[85.850, 8.872, 2.053, 0.323, 0.107, 0.033, 0.040, 0.152, 2.568]
                             )
 
-    # Generate a query for each text
     # Setting up the LLM
     if not os.environ.get("OPENAI_API_KEY"):
         os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter API key for OpenAI: ")
@@ -90,21 +91,15 @@ if __name__ == "__main__":
         "eller rättsfallet. Svara med enbart sökfrågan."
     )
 
+    # Generate a query for each text
     print("Generating queries...")
-    queries = []
-    for text in pos_data_lst:
-        prompt = prompt_template.invoke({"text": text})
-        # This next step costs money per tokens !!!
-        query = llm.invoke(prompt).content
-        queries.append(query)
-
-    assert len(pos_data_lst) == len(queries)
-
-    # Write data into jsonl-file
-    print("Writing to file...")
     with open(outpath, "w", encoding="utf-8") as outfile:
-        for i in range(len(pos_data_lst)):
-            text_pair = {"query": queries[i], "pos": [pos_data_lst[i]]}
+        for text in pos_data_lst:
+            prompt = prompt_template.invoke({"text": text})
+            # This next step costs money per tokens !!!
+            query = llm.invoke(prompt).content
+            # Write text pair into file
+            text_pair = {"query": query, "pos": [text]}
             json_line = json.dumps(text_pair, ensure_ascii=False)
             outfile.write(json_line + "\n")
     print("Done!")
