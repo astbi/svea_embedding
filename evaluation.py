@@ -62,7 +62,7 @@ class Evaluation():
         print("Embedding documents...")
         document_embeddings = model.encode(self.documents, convert_to_numpy=True, batch_size=2, show_progress_bar=True) # encode corpus
         dimension = document_embeddings.shape[1]
-        index = faiss.IndexFlatIP(dimension) # create faiss index
+        index = faiss.IndexFlatIP(dimension) # create faiss index (inner product)
         index.add(document_embeddings)
         results = dict()
         average_precisions = []
