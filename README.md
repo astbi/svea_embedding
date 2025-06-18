@@ -1,5 +1,5 @@
 # Svea Embedding
-This repository contains scripts and example data for my master thesis in language technology.
+This repository contains scripts and example data for my master thesis in language technology: [Fine-Tuning LLMs in Information Retrieval for Historical Swedish Court Records Using AI-generated Question-Answer Data](https://uu.diva-portal.org/smash/record.jsf?dswid=-9608&pid=diva2%3A1971656&c=1&searchType=SIMPLE&language=en&query=astrid+berntsson+ingelstam&af=%5B%5D&aq=%5B%5B%5D%5D&aq2=%5B%5B%5D%5D&aqe=%5B%5D&noOfRows=50&sortOrder=author_sort_asc&sortOrder2=title_sort_asc&onlyFullText=false&sf=all).
 
 To follow the methodology steps, one first needs to install the FlagEmbedding package:
 
