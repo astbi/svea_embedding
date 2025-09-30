@@ -58,7 +58,7 @@ python split_data_by_length.py \
 --num_proc 16 \
 ```
 
-The scripts `hn_mine`, `add_reranker_score` and `split_data_by_length` were copied from the Flag Embedding GitHub repository (https://github.com/FlagOpen/FlagEmbedding) and modified to handle utf-8 encoding.
+The scripts `hn_mine`, `add_reranker_score` and `split_data_by_length` are copied from the Flag Embedding GitHub repository (https://github.com/FlagOpen/FlagEmbedding) and modified to handle utf-8 encoding.
 
 ## Fine-tuning of BGE M3-Embedding
 We follow the fine-tuning instructions of BGE M3-Embedding availibe in the FlagEmbedding GitHub repository: https://github.com/FlagOpen/FlagEmbedding.
@@ -103,7 +103,7 @@ torchrun --nproc_per_node 2 \
 ```
 
 ## Gold Standard
-Once we have queries and documents for evaluation, we can prepare the gold standard ranking. The input examples need to have the same for as in the file `example_pos.jsonl`: queries paired with one positive document.
+Once we have queries and documents for evaluation, we can prepare the gold standard ranking. The input examples need to have the same form as in the file `example_pos.jsonl`: queries paired with one positive document.
 
 `python prepare_eval_data.py example_pos.jsonl example_gold_standard.jsonl`
 
